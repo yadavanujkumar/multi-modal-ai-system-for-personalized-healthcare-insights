@@ -1,0 +1,118 @@
+# Kubernetes deployment manifest for the Multi-Modal AI System
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # Unique name for the deployment
+  name: multi-modal-ai-system
+  # Namespace for the deployment (e.g., dev, staging, prod)
+  namespace: prod
+spec:
+  # Number of replicas for the deployment
+  replicas: 3
+  # Selector for the deployment
+  selector:
+    matchLabels:
+      app: multi-modal-ai-system
+  # Template for the deployment
+  template:
+    metadata:
+      labels:
+        app: multi-modal-ai-system
+    spec:
+      # Containers for the deployment
+      containers:
+      - name: multi-modal-ai-system
+        # Docker image for the container
+        image: ${DOCKER_IMAGE}
+        # Environment variables for the container
+        env:
+        - name: ENVIRONMENT
+          value: ${ENVIRONMENT}
+        - name: DATABASE_URL
+          value: ${DATABASE_URL}
+        - name: MODEL_PATH
+          value: ${MODEL_PATH}
+        # Resource limits for the container
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        # Liveness probe for the container
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        # Readiness probe for the container
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        # Ports for the container
+        ports:
+        - containerPort: 8000
+      # Security context for the deployment
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+  # Strategy for the deployment
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  # Revision history for the deployment
+  revisionHistoryLimit: 10
+---
+# Service for the deployment
+apiVersion: v1
+kind: Service
+metadata:
+  # Unique name for the service
+  name: multi-modal-ai-system
+  # Namespace for the service (e.g., dev, staging, prod)
+  namespace: prod
+spec:
+  # Type of service (e.g., ClusterIP, NodePort, LoadBalancer)
+  type: ClusterIP
+  # Ports for the service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+  # Selector for the service
+  selector:
+    app: multi-modal-ai-system
+---
+# ConfigMap for the deployment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # Unique name for the ConfigMap
+  name: multi-modal-ai-system
+  # Namespace for the ConfigMap (e.g., dev, staging, prod)
+  namespace: prod
+data:
+  # Configuration data for the deployment
+  DATABASE_URL: ${DATABASE_URL}
+  MODEL_PATH: ${MODEL_PATH}
+---
+# Secret for the deployment
+apiVersion: v1
+kind: Secret
+metadata:
+  # Unique name for the Secret
+  name: multi-modal-ai-system
+  # Namespace for the Secret (e.g., dev, staging, prod)
+  namespace: prod
+type: Opaque
+data:
+  # Sensitive data for the deployment
+  DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+  MODEL_TOKEN: ${MODEL_TOKEN}

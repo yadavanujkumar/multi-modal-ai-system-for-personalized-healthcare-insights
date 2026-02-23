@@ -1,0 +1,224 @@
+# docker-compose.yml configuration file for Multi-Modal AI System
+
+version: '3.8'
+
+# Define services
+services:
+  # Python service for backend API
+  python-backend:
+    build:
+      context: ./python-backend
+      dockerfile: Dockerfile
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT}
+      - DATABASE_URL=${DATABASE_URL}
+      - MODEL_PATH=${MODEL_PATH}
+    volumes:
+      - ./python-backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8000/healthcheck || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+  # JavaScript service for frontend
+  javascript-frontend:
+    build:
+      context: ./javascript-frontend
+      dockerfile: Dockerfile
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT}
+      - API_URL=${API_URL}
+    volumes:
+      - ./javascript-frontend:/app
+    ports:
+      - "3000:3000"
+    depends_on:
+      - python-backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:3000/healthcheck || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+  # Database service
+  database:
+    image: postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - database-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+# Define volumes
+volumes:
+  database-data:
+
+# Define environment variables
+env_file:
+  - .env
+
+# Define environment-specific settings
+environments:
+  dev:
+    python-backend:
+      environment:
+        - ENVIRONMENT=dev
+        - DATABASE_URL=postgres://user:password@database:5432/database
+        - MODEL_PATH=/app/models
+    javascript-frontend:
+      environment:
+        - ENVIRONMENT=dev
+        - API_URL=http://python-backend:8000
+  staging:
+    python-backend:
+      environment:
+        - ENVIRONMENT=staging
+        - DATABASE_URL=postgres://user:password@database:5432/database
+        - MODEL_PATH=/app/models
+    javascript-frontend:
+      environment:
+        - ENVIRONMENT=staging
+        - API_URL=http://python-backend:8000
+  prod:
+    python-backend:
+      environment:
+        - ENVIRONMENT=prod
+        - DATABASE_URL=postgres://user:password@database:5432/database
+        - MODEL_PATH=/app/models
+    javascript-frontend:
+      environment:
+        - ENVIRONMENT=prod
+        - API_URL=http://python-backend:8000
+
+# Define resource limits
+resources:
+  python-backend:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+  javascript-frontend:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+  database:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+```
+
+```makefile
+# Makefile for Multi-Modal AI System
+
+# Define environment variables
+ENVIRONMENT ?= dev
+POSTGRES_USER ?= user
+POSTGRES_PASSWORD ?= password
+POSTGRES_DB ?= database
+DATABASE_URL ?= postgres://user:password@database:5432/database
+MODEL_PATH ?= /app/models
+API_URL ?= http://python-backend:8000
+
+# Define docker-compose commands
+up:
+	docker-compose up -d
+
+down:
+	docker-compose down
+
+build:
+	docker-compose build
+
+logs:
+	docker-compose logs -f
+
+# Define environment-specific commands
+dev:
+	ENVIRONMENT=dev docker-compose up -d
+
+staging:
+	ENVIRONMENT=staging docker-compose up -d
+
+prod:
+	ENVIRONMENT=prod docker-compose up -d
+```
+
+```bash
+# .env file for Multi-Modal AI System
+
+ENVIRONMENT=dev
+POSTGRES_USER=user
+POSTGRES_PASSWORD=password
+POSTGRES_DB=database
+DATABASE_URL=postgres://user:password@database:5432/database
+MODEL_PATH=/app/models
+API_URL=http://python-backend:8000
+```
+
+```bash
+# Dockerfile for Python backend
+
+# Use official Python image
+FROM python:3.9-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements file
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Expose port
+EXPOSE 8000
+
+# Run command
+CMD ["python", "app.py"]
+```
+
+```bash
+# Dockerfile for JavaScript frontend
+
+# Use official Node.js image
+FROM node:14-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy package.json file
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application code
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Run command
+CMD ["npm", "start"]

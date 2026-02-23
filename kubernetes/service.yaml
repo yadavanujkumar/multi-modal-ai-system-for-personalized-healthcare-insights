@@ -1,0 +1,158 @@
+# Kubernetes service manifest for exposing the Multi-Modal AI System to external traffic
+apiVersion: v1
+kind: Service
+metadata:
+  # Name of the service
+  name: multi-modal-ai-system
+  # Namespace for the service
+  namespace: healthcare-insights
+  # Labels for the service
+  labels:
+    app: multi-modal-ai-system
+    environment: ${ENVIRONMENT}
+  # Annotations for the service
+  annotations:
+    # Load balancer annotations for external access
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: ${SSL_CERTIFICATE}
+
+spec:
+  # Type of the service (ClusterIP, NodePort, LoadBalancer)
+  type: LoadBalancer
+  # Port configuration for the service
+  ports:
+  - name: http
+    # Port number for the service
+    port: 80
+    # Target port for the service
+    targetPort: 8080
+    # Protocol for the service (TCP, UDP)
+    protocol: TCP
+  - name: https
+    # Port number for the service
+    port: 443
+    # Target port for the service
+    targetPort: 8443
+    # Protocol for the service (TCP, UDP)
+    protocol: TCP
+  # Selector for the service
+  selector:
+    app: multi-modal-ai-system
+  # Session affinity for the service
+  sessionAffinity: None
+  # External traffic policy for the service
+  externalTrafficPolicy: Local
+
+---
+# Kubernetes deployment manifest for the Multi-Modal AI System
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # Name of the deployment
+  name: multi-modal-ai-system
+  # Namespace for the deployment
+  namespace: healthcare-insights
+  # Labels for the deployment
+  labels:
+    app: multi-modal-ai-system
+    environment: ${ENVIRONMENT}
+  # Annotations for the deployment
+  annotations:
+    # Rollout strategy for the deployment
+    rolloutStrategy: Recreate
+
+spec:
+  # Replicas for the deployment
+  replicas: ${REPLICAS}
+  # Selector for the deployment
+  selector:
+    matchLabels:
+      app: multi-modal-ai-system
+  # Template for the deployment
+  template:
+    metadata:
+      # Labels for the template
+      labels:
+        app: multi-modal-ai-system
+    spec:
+      # Containers for the template
+      containers:
+      - name: multi-modal-ai-system
+        # Image for the container
+        image: ${DOCKER_IMAGE}
+        # Ports for the container
+        ports:
+        - containerPort: 8080
+        # Environment variables for the container
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: ENVIRONMENT
+          value: ${ENVIRONMENT}
+        - name: LOG_LEVEL
+          value: ${LOG_LEVEL}
+        # Resources for the container
+        resources:
+          requests:
+            cpu: ${CPU_REQUEST}
+            memory: ${MEMORY_REQUEST}
+          limits:
+            cpu: ${CPU_LIMIT}
+            memory: ${MEMORY_LIMIT}
+        # Liveness probe for the container
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        # Readiness probe for the container
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        # Security context for the container
+        securityContext:
+          runAsUser: 1000
+          fsGroup: 1000
+      # Security context for the pod
+      securityContext:
+        fsGroup: 1000
+      # Volumes for the pod
+      volumes:
+      - name: logs
+        emptyDir: {}
+      # Node selector for the pod
+      nodeSelector:
+        node-type: ${NODE_TYPE}
+
+---
+# Kubernetes config map manifest for the Multi-Modal AI System
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # Name of the config map
+  name: multi-modal-ai-system
+  # Namespace for the config map
+  namespace: healthcare-insights
+  # Labels for the config map
+  labels:
+    app: multi-modal-ai-system
+    environment: ${ENVIRONMENT}
+
+data:
+  # Configuration data for the config map
+  LOG_LEVEL: ${LOG_LEVEL}
+  ENVIRONMENT: ${ENVIRONMENT}
+  PYTHONUNBUFFERED: "1"
+  CPU_REQUEST: ${CPU_REQUEST}
+  MEMORY_REQUEST: ${MEMORY_REQUEST}
+  CPU_LIMIT: ${CPU_LIMIT}
+  MEMORY_LIMIT: ${MEMORY_LIMIT}
+  REPLICAS: ${REPLICAS}
+  NODE_TYPE: ${NODE_TYPE}
+  DOCKER_IMAGE: ${DOCKER_IMAGE}
+  SSL_CERTIFICATE: ${SSL_CERTIFICATE}

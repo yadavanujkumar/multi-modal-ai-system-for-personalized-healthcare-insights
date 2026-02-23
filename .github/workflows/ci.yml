@@ -1,0 +1,138 @@
+# .github/workflows/ci.yml: Continuous Integration workflow for Multi-Modal AI System
+
+name: CI
+
+on:
+  # Trigger workflow on push events to main branch
+  push:
+    branches:
+      - main
+  # Trigger workflow on pull requests to main branch
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # Define a job for linting, testing, and building
+  ci:
+    runs-on: ubuntu-latest
+    # Define environment variables for different environments
+    env:
+      # Environment separation (dev, staging, prod)
+      ENVIRONMENT: ${{ github.event.branch == 'main' && 'prod' || 'dev' }}
+      # Secrets/sensitive data management using env vars
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_USERNAME: ${{ secrets.DB_USERNAME }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      # Performance tuning for different environments
+      CPU_LIMIT: ${{ ENVIRONMENT == 'prod' && '4' || '2' }}
+      MEMORY_LIMIT: ${{ ENVIRONMENT == 'prod' && '8192' || '4096' }}
+    # Define steps for the job
+    steps:
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+      # Set up Python environment
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      # Lint code
+      - name: Lint code
+        run: |
+          # Lint Python code
+          pylint --rcfile=.pylintrc .
+          # Lint JavaScript code
+          eslint .
+      # Test code
+      - name: Test code
+        run: |
+          # Test Python code
+          python -m unittest discover -s tests -p 'test_*.py'
+          # Test JavaScript code
+          jest
+      # Build and package code
+      - name: Build and package code
+        run: |
+          # Build Python package
+          python setup.py sdist bdist_wheel
+          # Build Docker image
+          docker build -t multi-modal-ai-system .
+      # Deploy code
+      - name: Deploy code
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_PRIVATE_KEY }}
+          source: "."
+          target: "/var/www/multi-modal-ai-system"
+      # Verify deployment
+      - name: Verify deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_PRIVATE_KEY }}
+          script: |
+            # Verify deployment
+            curl -X GET http://localhost:8080/healthcheck
+
+# Define a job for code quality checks
+  code-quality:
+    runs-on: ubuntu-latest
+    # Define environment variables for code quality checks
+    env:
+      # Code quality tool configuration
+      CODE_QUALITY_TOOL: 'sonarqube'
+      # Code quality tool URL
+      CODE_QUALITY_TOOL_URL: ${{ secrets.CODE_QUALITY_TOOL_URL }}
+      # Code quality tool token
+      CODE_QUALITY_TOOL_TOKEN: ${{ secrets.CODE_QUALITY_TOOL_TOKEN }}
+    # Define steps for the job
+    steps:
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+      # Set up code quality tool
+      - name: Set up code quality tool
+        uses: sonarqube/sonarqube-action@v1
+        with:
+          sonarqube-url: ${{ env.CODE_QUALITY_TOOL_URL }}
+          sonarqube-token: ${{ env.CODE_QUALITY_TOOL_TOKEN }}
+      # Run code quality checks
+      - name: Run code quality checks
+        run: |
+          # Run code quality checks
+          sonar-scanner
+
+# Define a job for security checks
+  security:
+    runs-on: ubuntu-latest
+    # Define environment variables for security checks
+    env:
+      # Security tool configuration
+      SECURITY_TOOL: 'snyk'
+      # Security tool token
+      SECURITY_TOOL_TOKEN: ${{ secrets.SECURITY_TOOL_TOKEN }}
+    # Define steps for the job
+    steps:
+      # Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+      # Set up security tool
+      - name: Set up security tool
+        uses: snyk/snyk-action@v1
+        with:
+          snyk-token: ${{ env.SECURITY_TOOL_TOKEN }}
+      # Run security checks
+      - name: Run security checks
+        run: |
+          # Run security checks
+          snyk test
